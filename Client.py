@@ -3,6 +3,7 @@ from Encoder import Encoder
 from Server import SERVER_IP, SERVER_PORT
 from socket import socket, AF_INET, SOCK_DGRAM
 import random
+import time
 
 class Client:
 
@@ -16,6 +17,11 @@ class Client:
                 self.getFile()
             except FileNotFoundError:
                 continue
+            except KeyboardInterrupt:
+                print("Keyboard interrupted execution")
+                pass
+            except:
+                print("Server response time out! Try again")
 
     def getInput(self):
         requiring_path = True
@@ -54,6 +60,7 @@ class Client:
             return
 
         with socket(AF_INET, SOCK_DGRAM) as s:
+            s.settimeout(2)
             # Primeiro pacote enviado como pedido ao servidor
             payload = Encoder.encode(0, "GET", self._fname.encode())
             s.sendto(payload, (self._ip, self._port))
@@ -62,8 +69,8 @@ class Client:
             file = {}
             loss = []
             segm_count = 0
+            receiving = True
 
-            print("Receiving packages...")
             while self._transmitting:
                 try:
                     # recvfrom dados e endereço de quem enviou
@@ -71,13 +78,17 @@ class Client:
                 except Exception as e:
                     print("No connection stablished. Server not innitialized!")
                     return
+                
+                if receiving: 
+                    receiving = False
+                    print(f"Receiving packages...")
 
                 decoded = Encoder.decode(msg)
                 self.processDecoded(decoded, file, loss, segm_count)
 
             # UDP não garante entrega, nem ordem dos pacotes, necessário recuperar perdas do lado do cliente
             self.retrieveLosses(loss, file, s)
-            self.writeFile(file, './files/out')
+            self.writeFile(file, f'./files/out{time.time_ns()}')
 
     def retrieveLosses(self, loss, file, socket):
         print(f"Retrieving {len(loss)} packages lost\n")
